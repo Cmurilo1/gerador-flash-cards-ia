@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Flashcards com IA</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 650px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #222;
+            margin-bottom: 1.5rem;
+            font-size: 1.4rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+        textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            min-height: 90px;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        button {
+            width: 100%;
+            padding: 0.9rem;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #1976D2;
+        }
+        #espaco-cards {
+            margin-top: 1.5rem;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .card-pergunta {
+            font-weight: bold;
+            margin-bottom: 0.6rem;
+            font-size: 1.05rem;
+        }
+        .card-resposta {
+            color: #444;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Gerador de Flashcards com IA</h1>
+
+        <label for="texto-usuario">Cole seu texto ou matéria aqui:</label>
+        <textarea id="texto-usuario" placeholder="Ex: Em que ano o Brasil foi descoberto?"></textarea>
+
+        <button id="btn-gerar">Gerar Flashcard Inteligente 🚀</button>
+        <!-- 📸 Nova área: Câmera / Upload de Imagem -->
+<div style="margin: 1rem 0;">
+  <label style="display:block; font-weight:bold; margin-bottom:0.5rem;">📷 Ou tire uma foto / envie página de prova:</label>
+  <input type="file" id="imagem-upload" accept="image/*" capture="environment" style="width:100%; padding:0.5rem; margin-bottom:0.5rem; border:1px solid #ccc; border-radius:6px;">
+  <button id="btn-ler-imagem" style="width:100%; padding:0.8rem; background:#4CAF50; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">🔍 Ler Texto da Imagem</button>
+</div>
+
+        <div id="espaco-cards"></div>
+    </div>
+
+    <script>
+   const btnGerar = document.getElementById('btn-gerar');
+const campoTexto = document.getElementById('texto-usuario');
+const espacoCards = document.getElementById('espaco-cards');
+
+btnGerar.addEventListener('click', async () => {
+  try {
+    const textoDigitado = campoTexto.value.trim();
+    if (!textoDigitado) {
+      alert("⚠️ Digite um texto antes de gerar!");
+      return;
+    }
+
+    // ✅ Agora usa a rota POST /gerar que já existe
+    const res = await fetch('/api/flashcards/gerar', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        texto_estudo: textoDigitado,
+        materia: "Geral",
+        id_usuario: 1
+      })
+    });
+
+    if (!res.ok) throw new Error(`Erro na API: ${res.status}`);
+
+    const dados = await res.json();
+    console.log("Dados recebidos:", dados);
+    espacoCards.innerHTML = '';
+
+    // ✅ Trata tanto lista de cartões quanto um único
+    if (dados && Array.isArray(dados.cards)) {
+      dados.cards.forEach(card => {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'card';
+        cardEl.innerHTML = ` 
+          <div class="card-pergunta">❓ Pergunta: ${card.pergunta}</div>
+          <div class="card-resposta">✅ Resposta: ${card.resposta}</div>
+        `;
+        espacoCards.appendChild(cardEl);
+      });
+    } else if (dados && dados.pergunta && dados.resposta) {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'card';
+      cardEl.innerHTML = ` 
+        <div class="card-pergunta">❓ Pergunta: ${dados.pergunta}</div>
+        <div class="card-resposta">✅ Resposta: ${dados.resposta}</div>
+      `;
+      espacoCards.appendChild(cardEl);
+    } else {
+      espacoCards.textContent = "ℹ️ Nenhum flashcard foi gerado.";
+    }
+
+  } catch (erro) {
+    console.error("Falha:", erro);
+    espacoCards.textContent = "❌ Verifique se a API está rodando!";
+  }
+});
+// 📸 Funcionalidade de leitura de imagem
+const btnLerImagem = document.getElementById('btn-ler-imagem');
+const inputImagem = document.getElementById('imagem-upload');
+
+// Importa o Tesseract direto do CDN
+const scriptTesseract = document.createElement('script');
+scriptTesseract.src = "https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js";
+document.head.appendChild(scriptTesseract);
+
+btnLerImagem.addEventListener('click', async () => {
+  const arquivo = inputImagem.files[0];
+  if (!arquivo) return alert("⚠️ Primeiro tire uma foto ou escolha uma imagem!");
+
+  try {
+    alert("🔄 Lendo texto... aguarde um instante");
+    const resultado = await Tesseract.recognize(arquivo, 'por'); // Reconhecimento em português
+    const textoLido = resultado.data.text.trim();
+
+    if (!textoLido) return alert("❌ Não foi possível ler o texto da imagem. Tente com uma foto mais nítida.");
+
+    // Coloca o texto lido diretamente no campo para gerar os cartões
+    campoTexto.value = textoLido;
+    alert("✅ Texto lido com sucesso! Agora clique em 'Gerar Flashcard Inteligente'");
+
+  } catch (erro) {
+    alert("❌ Erro ao processar imagem: " + erro.message);
+    console.error(erro);
+  }
+});
+    </script>
+</body>
+</html>
