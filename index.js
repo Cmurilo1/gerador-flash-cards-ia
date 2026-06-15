@@ -2,11 +2,17 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const path = require('path');
 const db = require('./db');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'frontend')));
+// Adicione esta rota para forçar o envio do index.html na raiz
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
+});
 
 // Rota para Gerar e Salvar os Flashcards
 app.post('/api/flashcards/gerar', async (req, res) => {
@@ -105,8 +111,5 @@ app.delete('/api/flashcards/:id_card', async (req, res) => {
     }
 });
 
-//const PORT = 3000;
-//app.listen(PORT, () => {
-//    console.log(`(🚀 Servidor rodando com Groq na porta ${PORT})`);
-//});
+
 module.exports = app;
