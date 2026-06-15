@@ -30,7 +30,7 @@ app.post('/api/flashcards/gerar', async (req, res) => {
             model: "llama-3.3-70b-versatile", // Modelo ultra rápido e gratuito
             messages: [{
                 role: "user",
-                content: `content: Você é especialista em materiais de estudo e provas de vestibular. Com base no texto abaixo — que pode vir de foto de página, prova ou resumo — identifique TODAS as perguntas e suas respostas correspondentes. Separe em uma lista de flashcards claros, em formato JSON.
+                content: `Analise o texto a seguir (que pode vir de resumo, página de prova ou captura de imagem). Identifique todas as perguntas e respostas e responda APENAS em formato JSON, sem nenhum texto explicativo, seguindo exatamente esta estrutura: { "pergunta": "...", "resposta": "..." }. O texto é: ${texto_criado}
 Texto: ${texto_estudo}`
             }],
             temperature: 0.2
