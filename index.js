@@ -30,8 +30,7 @@ app.post('/api/flashcards/gerar', async (req, res) => {
             model: "llama-3.3-70b-versatile", // Modelo ultra rápido e gratuito
             messages: [{
                 role: "user",
-                content: `Analise o texto a seguir (que pode vir de resumo, página de prova ou captura de imagem). Identifique todas as perguntas e respostas e responda APENAS em formato JSON, sem nenhum texto explicativo, seguindo exatamente esta estrutura: { "pergunta": "...", "resposta": "..." }. O texto é: ${texto_criado}
-Texto: ${texto_estudo}`
+  content: `Analise o texto e responda APENAS em formato JSON válido, sem texto explicativo, sem markdown, seguindo esta estrutura: { "pergunta": "...", "resposta": "..." }. O texto é: ${texto_estudo}`
             }],
             temperature: 0.2
         };
