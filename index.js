@@ -59,13 +59,23 @@ try {
 const flashcardsGerados = Array.isArray(parsedData) ? parsedData : [parsedData];
 
 // Inserção automática no seu Banco de Dados MySQL
-for (const card of flashcardsGerados) {
-    await db.execute(
-        'INSERT INTO tabela_flashcards (id_usuario, materia, pergunta, resposta) VALUES (?, ?, ?, ?)',
-        [id_usuario, materia, card.pergunta, card.resposta]
-    );
-}
+console.log("Iniciando inserção de", flashcardsGerados.length, "flashcards.");
 
+for (const card of flashcardsGerados) {
+    if (!card.pergunta || !card.resposta) {
+        console.error("Flashcard inválido encontrado:", card);
+        continue;
+    }
+    try {
+        await db.execute(
+            'INSERT INTO tabela_flashcards (id_usuario, materia, pergunta, resposta) VALUES (?, ?, ?, ?)',
+            [id_usuario, 'Geral', card.pergunta, card.resposta]
+        );
+    } catch (dbError) {
+        console.error("Erro CRÍTICO no banco:", dbError);
+        throw dbError;
+    }
+}
         // Retorna a resposta de sucesso para o Postman
         res.status(201).json({ message: 'Flashcards salvos com sucesso com a Groq!', cards: flashcardsGerados });
 
