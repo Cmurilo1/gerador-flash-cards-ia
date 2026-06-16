@@ -47,7 +47,8 @@ app.post('/api/flashcards/gerar', async (req, res) => {
         const text = responseAI.data.choices[0].message.content;
 
         // Converte o texto recebido para array JSON real
-        const flashcardsGerados = JSON.parse(text.trim());
+        const parsedData = JSON.parse(text.trim());
+        const flashcardsGerados = Array.isArray(parsedData) ? parsedData : [parsedData];
 
         // Inserção automática no seu Banco de Dados MySQL
         for (const card of flashcardsGerados) {
