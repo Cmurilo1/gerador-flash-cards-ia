@@ -43,21 +43,28 @@ app.post('/api/flashcards/gerar', async (req, res) => {
             }
         });
 
-        // Captura o texto limpo da IA
-        //const text = responseAI.data.choices[0].message.content;
 // Captura e limpa o texto antes de converter
 let text = responseAI.data.choices[0].message.content;
-const textClean = text.replace(/```json/g, "").replace(/``````/g, "").trim();
-const parsedData = JSON.parse(textClean);
+const textClean = text.replace(/```json/g, "").replace(/```/g, "").trim();
+
+let parsedData;
+try {
+    parsedData = JSON.parse(textClean);
+} catch (e) {
+    console.error("Erro ao fazer parse do JSON:", e);
+    return res.status(500).json({ error: "Erro na formatação da resposta da IA" });
+}
+
+// Garante que é uma lista e salva
 const flashcardsGerados = Array.isArray(parsedData) ? parsedData : [parsedData];
 
-        // Inserção automática no seu Banco de Dados MySQL
-        for (const card of flashcardsGerados) {
-            await db.execute(
-                'INSERT INTO tabela_flashcards (id_usuario, materia, pergunta, resposta) VALUES (?, ?, ?, ?)',
-                [id_usuario, materia, card.pergunta, card.resposta]
-            );
-        }
+// Inserção automática no seu Banco de Dados MySQL
+for (const card of flashcardsGerados) {
+    await db.execute(
+        'INSERT INTO tabela_flashcards (id_usuario, materia, pergunta, resposta) VALUES (?, ?, ?, ?)',
+        [id_usuario, materia, card.pergunta, card.resposta]
+    );
+}
 
         // Retorna a resposta de sucesso para o Postman
         res.status(201).json({ message: 'Flashcards salvos com sucesso com a Groq!', cards: flashcardsGerados });
