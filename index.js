@@ -47,12 +47,9 @@ app.post('/api/flashcards/gerar', async (req, res) => {
         //const text = responseAI.data.choices[0].message.content;
 // Captura e limpa o texto antes de converter
 let text = responseAI.data.choices[0].message.content;
-text = text.replace(/`json/g, "").replace(/```/g, "").trim(); // Remove marcações de Markdown
-const flashcardsGerados = JSON.parse(text);
-
-        // Converte o texto recebido para array JSON real
-        const parsedData = JSON.parse(text.trim());
-        const flashcardsGerados = Array.isArray(parsedData) ? parsedData : [parsedData];
+const textClean = text.replace(/```json/g, "").replace(/``````/g, "").trim();
+const parsedData = JSON.parse(textClean);
+const flashcardsGerados = Array.isArray(parsedData) ? parsedData : [parsedData];
 
         // Inserção automática no seu Banco de Dados MySQL
         for (const card of flashcardsGerados) {
