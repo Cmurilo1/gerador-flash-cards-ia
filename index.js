@@ -44,7 +44,11 @@ app.post('/api/flashcards/gerar', async (req, res) => {
         });
 
         // Captura o texto limpo da IA
-        const text = responseAI.data.choices[0].message.content;
+        //const text = responseAI.data.choices[0].message.content;
+// Captura e limpa o texto antes de converter
+let text = responseAI.data.choices[0].message.content;
+text = text.replace(/`json/g, "").replace(/```/g, "").trim(); // Remove marcações de Markdown
+const flashcardsGerados = JSON.parse(text);
 
         // Converte o texto recebido para array JSON real
         const parsedData = JSON.parse(text.trim());
