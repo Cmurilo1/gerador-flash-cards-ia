@@ -3,131 +3,138 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
-const db = require('./db');
+const db = require('./db'); // ✅ Caminho correto
 
 const app = express();
-app.use(cors());
+
+// ✅ CORS configurado para funcionar local e na Vercel
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "https://gerador-flash-cards-ia-oe22-beb89hwom-cmurilo1s-projects.vercel.app"
+  ]
+}));
+
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'frontend')));
-// Adicione esta rota para forçar o envio do index.html na raiz
+
+// ✅ Servir arquivos da pasta PUBLIC
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ✅ Rota principal
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Rota para Gerar e Salvar os Flashcards
+// ✅ Rota para Gerar e Salvar os Flashcards
 app.post('/api/flashcards/gerar', async (req, res) => {
+  try {
+    const { id_usuario, materia, texto_estudo } = req.body;
+
+    if (!texto_estudo || !id_usuario) {
+      return res.status(400).json({ error: "Faltam dados obrigatórios." });
+    }
+
+    const apiKey = process.env.GROQ_API_KEY;
+    const urlAPI = 'https://api.groq.com/openai/v1/chat/completions';
+
+    const dataBody = {
+      model: "llama-3.3-70b-versatile",
+      messages: [{
+        role: "user",
+        content: `Analise o texto e responda APENAS em formato JSON válido, contendo uma lista de objetos. Mesmo que haja apenas um flashcard, retorne dentro de colchetes. Exemplo: [{ "pergunta": "...", "resposta": "..." }]. Texto: ${texto_estudo}`
+      }],
+      temperature: 0.2
+    };
+
+    const responseAI = await axios.post(urlAPI, dataBody, {
+      headers: { 
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    let text = responseAI.data.choices[0].message.content;
+    const textClean = text.replace(/`json|```/g, "").trim();
+
+    let parsedData;
     try {
-        const { id_usuario, materia, texto_estudo } = req.body;
+      parsedData = JSON.parse(textClean);
+    } catch (e) {
+      console.error("Erro ao fazer parse do JSON:", e);
+      return res.status(500).json({ error: "Erro na formatação da resposta da IA" });
+    }
 
-        if (!texto_estudo || !id_usuario) {
-            return res.status(400).json({ error: "Faltam dados obrigatórios." });
-        }
+    const flashcardsGerados = Array.isArray(parsedData) ? parsedData : [parsedData];
 
-        const apiKey = process.env.GROQ_API_KEY;
-        const urlAPI = 'https://api.groq.com/openai/v1/chat/completions';
+    console.log("Iniciando inserção de", flashcardsGerados.length, "flashcards.");
 
-        const dataBody = {
-            model: "llama-3.3-70b-versatile", // Modelo ultra rápido e gratuito
-            messages: [{
-                role: "user",
-  content: `Analise o texto e responda APENAS em formato JSON válido, contendo uma lista de objetos. Mesmo que haja apenas um flashcard, retorne dentro de colchetes. Exemplo: [{ "pergunta": "...", "resposta": "..." }]. Texto: ${texto_estudo}`
-            }],
-            temperature: 0.2
-        };
-
-        // Requisição HTTP direta para a Groq
-        const responseAI = await axios.post(urlAPI, dataBody, {
-            headers: { 
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-// Captura e limpa o texto antes de converter
-let text = responseAI.data.choices[0].message.content;
-const textClean = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-let parsedData;
-try {
-    parsedData = JSON.parse(textClean);
-} catch (e) {
-    console.error("Erro ao fazer parse do JSON:", e);
-    return res.status(500).json({ error: "Erro na formatação da resposta da IA" });
-}
-
-// Garante que é uma lista e salva
-const flashcardsGerados = Array.isArray(parsedData) ? parsedData : [parsedData];
-
-// Inserção automática no seu Banco de Dados MySQL
-console.log("Iniciando inserção de", flashcardsGerados.length, "flashcards.");
-
-for (const card of flashcardsGerados) {
-    if (!card.pergunta || !card.resposta) {
+    for (const card of flashcardsGerados) {
+      if (!card.pergunta || !card.resposta) {
         console.error("Flashcard inválido encontrado:", card);
         continue;
-    }
-    try {
+      }
+      try {
         await db.execute(
-            'INSERT INTO tabela_flashcards (id_usuario, materia, pergunta, resposta) VALUES (?, ?, ?, ?)',
-            [id_usuario, 'Geral', card.pergunta, card.resposta]
+          'INSERT INTO tabela_flashcards (id_usuario, materia, pergunta, resposta) VALUES (?, ?, ?, ?)',
+          [id_usuario, materia || 'Geral', card.pergunta, card.resposta]
         );
-    } catch (dbError) {
+      } catch (dbError) {
         console.error("Erro CRÍTICO no banco:", dbError);
         throw dbError;
+      }
     }
-}
-        // Retorna a resposta de sucesso para o Postman
-        res.status(201).json({ message: 'Flashcards salvos com sucesso com a Groq!', cards: flashcardsGerados });
 
-    } catch (error) {
-        console.error("Erro no processamento:", error?.response?.data || error.message);
-        res.status(500).json({ 
-            error: "Erro no processamento", 
-            detalhes: error?.response?.data || error.message 
-        });
-    }
+    res.status(201).json({ 
+      message: 'Flashcards salvos com sucesso com a Groq!', 
+      cards: flashcardsGerados 
+    });
+
+  } catch (error) {
+    console.error("Erro no processamento:", error?.response?.data || error.message);
+    res.status(500).json({ 
+      error: "Erro no processamento", 
+      detalhes: error?.response?.data || error.message 
+    });
+  }
 });
-// Rota para buscar todos os flashcards de um usuário
+
+// ✅ Rota para buscar flashcards
 app.get('/api/flashcards/:id_usuario', async (req, res) => {
-    const { id_usuario } = req.params;
+  const { id_usuario } = req.params;
 
-    try {
-        // Busca os flashcards do usuário direto no MySQL
-        const [linhas] = await db.execute(
-            'SELECT * FROM tabela_flashcards WHERE id_usuario = ?',
-            [id_usuario]
-        );
+  try {
+    const [linhas] = await db.execute(
+      'SELECT * FROM tabela_flashcards WHERE id_usuario = ?',
+      [id_usuario]
+    );
 
-        // Se encontrar, devolve a lista para a tela
-        res.status(200).json(linhas);
-    } catch (error) {
-        console.error("Erro ao buscar flashcards:", error);
-        res.status(500).json({ error: "Erro ao buscar os dados no banco." });
-    }
+    res.status(200).json(linhas);
+  } catch (error) {
+    console.error("Erro ao buscar flashcards:", error);
+    res.status(500).json({ error: "Erro ao buscar os dados no banco." });
+  }
 });
-// Rota para deletar um flashcard específico pelo ID dele
+
+// ✅ Rota para deletar flashcard
 app.delete('/api/flashcards/:id_card', async (req, res) => {
-    const { id_card } = req.params;
+  const { id_card } = req.params;
 
-    try {
-        // Executa o comando para apagar o cartão do banco de dados
-        const [resultado] = await db.execute(
-            'DELETE FROM tabela_flashcards WHERE id_card = ?',
-            [id_card]
-        );
-
-        // Se nenhum registro foi afetado, significa que esse ID não existia
-        if (resultado.affectedRows === 0) {
-            return res.status(404).json({ error: "Flashcard não encontrado." });
-        }
-
-        // Se deu certo, avisa o usuário
-        res.status(200).json({ message: `Flashcard ${id_card} deletado com sucesso!` });
-    } catch (error) {
-        console.error("Erro ao deletar flashcard:", error);
-        res.status(500).json({ error: "Erro ao tentar deletar o cartão no banco." });
+  try {
+    const [resultado] = await db.execute(
+      'DELETE FROM tabela_flashcards WHERE id_card = ?',
+      [id_card]
+    );
+  
+    if (resultado.affectedRows === 0) {
+      return res.status(404).json({ error: "Flashcard não encontrado." });
     }
+    res.status(200).json({ message: `Flashcard ${id_card} deletado com sucesso!` });
+  } catch (error) {
+    console.error("Erro ao deletar flashcard:", error);
+    res.status(500).json({ error: "Erro ao tentar deletar o cartão no banco." });
+  }
 });
 
-
-module.exports = app;
+// ✅ Iniciar servidor
+const PORTA = process.env.PORT || 3000;
+app.listen(PORTA, () => console.log(`Servidor rodando na porta ${PORTA}`));

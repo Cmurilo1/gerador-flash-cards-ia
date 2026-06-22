@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Flashcards com IA</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; background-color: #f0f2f5; }
+        .container { background: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #1e293b; margin-bottom: 1.5rem; }
+        label { font-weight: 600; color: #334155; display: block; margin-bottom: 0.3rem; }
+        textarea, input[type="file"] { width: 100%; padding: 0.9rem; margin-bottom: 1rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+        textarea { min-height: 120px; resize: vertical; }
+        button { width: 100%; padding: 0.95rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; margin-bottom: 0.8rem; transition: background 0.2s; }
+        .btn-gerar { background-color: #2563eb; color: white; }
+        .btn-gerar:hover { background-color: #1d4ed8; }
+        .btn-ler { background-color: #16a34a; color: white; }
+        .btn-ler:hover { background-color: #15803d; }
+        .cards-area { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+        .card { background-color: #f8fafc; padding: 1.2rem; border-radius: 8px; border-left: 4px solid #2563eb; }
+        .card-pergunta { font-weight: bold; margin-bottom: 0.6rem; color: #1e293b; font-size: 1.05rem; }
+        .card-resposta { color: #334155; line-height: 1.5; }
+        .aviso { text-align: center; padding: 1rem; border-radius: 8px; margin: 1rem 0; }
+        .aviso.sucesso { background-color: #dcfce7; color: #166534; }
+        .aviso.erro { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Gerador de Flashcards com IA</h1>
+
+        <label for="texto_estudo">Cole seu texto ou matéria aqui:</label>
+        <textarea id="texto_estudo" placeholder="Ex: Em que ano o Brasil foi descoberto?"></textarea>
+
+        <button class="btn-gerar" id="btn-gerar">Gerar Flashcard Inteligente 🚀</button>
+
+        <div style="margin: 1.2rem 0; padding-top: 0.5rem; border-top: 1px solid #e2e8f0;">
+            <label>📷 Ou tire uma foto / envie página de prova:</label>
+            <input type="file" id="imagem-upload" accept="image/*">
+            <button class="btn-ler" id="btn-ler-imagem">🔍 Ler Texto da Imagem</button>
+        </div>
+
+        <div class="cards-area" id="espaco-cards"></div>
+    </div>
+
+    <script>
+        // Elementos da página
+        const campoTexto = document.getElementById('texto_estudo');
+        const btnGerar = document.getElementById('btn-gerar');
+        const espacoCards = document.getElementById('espaco-cards');
+        const btnLerImagem = document.getElementById('btn-ler-imagem');
+        const inputImagem = document.getElementById('imagem-upload');
+
+        // Função para gerar flashcards
+        btnGerar.addEventListener('click', async () => {
+            const texto_estudo = campoTexto.value.trim();
+            const materia = 'Geral';
+            const id_usuario = 1;
+
+            if (!texto_estudo) {
+                espacoCards.innerHTML = '<div class="aviso erro">⚠️ Digite ou cole um texto primeiro!</div>';
+                return;
+            }
+
+            try {
+                espacoCards.innerHTML = '<div class="aviso">🔄 Gerando flashcards... aguarde um instante</div>';
+
+                const resposta = await fetch('/api/flashcards/gerar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_usuario, materia, texto_estudo })
+                });
+
+                const dados = await resposta.json();
+
+                if (!resposta.ok) throw new Error(dados.error || 'Erro na requisição');
+
+                espacoCards.innerHTML = '';
+                if (dados && Array.isArray(dados.cards) && dados.cards.length > 0) {
+                    dados.cards.forEach(card => {
+                        const cardEl = document.createElement('div');
+                        cardEl.className = 'card';
+                        cardEl.innerHTML = 
+                            `<div class="card-pergunta">❓ Pergunta: ${card.pergunta}</div>
+                            <div class="card-resposta">✅ Resposta: ${card.resposta}</div>`
+                        ;
+                        espacoCards.appendChild(cardEl);
+                    });
+                } else if (dados && dados.pergunta && dados.resposta) {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = 'card';
+                    cardEl.innerHTML = `
+                        <div class="card-pergunta">❓ Pergunta: ${dados.pergunta}</div>
+                        <div class="card-resposta">✅ Resposta: ${dados.resposta}</div>
+                    `;
+                    espacoCards.appendChild(cardEl);
+                } else {
+                    espacoCards.innerHTML = '<div class="aviso">ℹ️ Nenhum flashcard foi gerado.</div>';
+                }
+
+            } catch (erro) {
+                console.error('Falha:', erro);
+                espacoCards.innerHTML = '<div class="aviso erro">❌ Verifique se a API está rodando!</div>';
+            }
+        });
+
+        // Funcionalidade de leitura de imagem
+        const scriptTesseract = document.createElement('script');
+        scriptTesseract.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
+        document.head.appendChild(scriptTesseract);
+
+        btnLerImagem.addEventListener('click', async () => {
+            const arquivo = inputImagem.files[0];
+            if (!arquivo) return alert('⚠️ Primeiro tire uma foto ou escolha uma imagem!');
+
+            try {
+                alert('🔄 Lendo texto... aguarde um instante');
+                const resultado = await Tesseract.recognize(arquivo, 'por');
+                const textoLido = resultado.data.text.trim();
+
+                if (!textoLido) return alert('❌ Não foi possível ler o texto da imagem. Tente com uma foto mais nítida.');
+
+                campoTexto.value = textoLido;
+                alert('✅ Texto lido com sucesso! Agora clique em "Gerar Flashcard Inteligente"');
+
+            } catch (erro) {
+                alert('❌ Erro ao processar imagem: ' + erro.message);
+                console.error(erro);
+            }
+        });
+    </script>
+</body>
+</html>
